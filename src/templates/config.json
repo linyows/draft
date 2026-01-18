@@ -1,0 +1,5 @@
+{
+  "templates_dir": ".draft/templates",
+  "output_dir": "docs",
+  "filename_format": "{{@title}}.md"
+}
