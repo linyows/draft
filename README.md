@@ -14,7 +14,7 @@ A Markdown template generator written in Zig.
 
 ### Build from source
 
-Requires Zig 0.13.0 or later.
+Requires Zig 0.15.0 or later.
 
 ```bash
 git clone https://github.com/linyows/draft.git

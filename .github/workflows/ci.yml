@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        zig-version: ['0.13.0', 'master']
+        zig-version: ['0.15.0']
 
     steps:
       - name: Checkout
@@ -45,7 +45,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
         with:
-          version: '0.13.0'
+          version: '0.15.0'
 
       - name: Check formatting
         run: zig fmt --check src/
