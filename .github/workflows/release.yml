@@ -80,3 +80,63 @@ jobs:
         with:
           generate_release_notes: true
           files: release/*
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download checksums
+        run: |
+          curl -sL "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/checksums.txt" -o checksums.txt
+          cat checksums.txt
+
+      - name: Parse checksums
+        id: checksums
+        run: |
+          echo "darwin_amd64=$(grep 'draft-darwin-amd64.tar.gz' checksums.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "darwin_arm64=$(grep 'draft-darwin-arm64.tar.gz' checksums.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$(grep 'draft-linux-amd64.tar.gz' checksums.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(grep 'draft-linux-arm64.tar.gz' checksums.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-draft
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: linyows/homebrew-draft
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: homebrew-draft
+
+      - name: Update formula
+        working-directory: homebrew-draft
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DARWIN_AMD64="${{ steps.checksums.outputs.darwin_amd64 }}"
+          DARWIN_ARM64="${{ steps.checksums.outputs.darwin_arm64 }}"
+          LINUX_AMD64="${{ steps.checksums.outputs.linux_amd64 }}"
+          LINUX_ARM64="${{ steps.checksums.outputs.linux_arm64 }}"
+
+          # Update version
+          sed -i "s/version \"[^\"]*\"/version \"${VERSION}\"/" draft.rb
+
+          # Update sha256 for each platform (match URL pattern and update following sha256 line)
+          sed -i "/draft-darwin-amd64\.tar\.gz/,/sha256/{s/sha256 \"[^\"]*\"/sha256 \"${DARWIN_AMD64}\"/}" draft.rb
+          sed -i "/draft-darwin-arm64\.tar\.gz/,/sha256/{s/sha256 \"[^\"]*\"/sha256 \"${DARWIN_ARM64}\"/}" draft.rb
+          sed -i "/draft-linux-amd64\.tar\.gz/,/sha256/{s/sha256 \"[^\"]*\"/sha256 \"${LINUX_AMD64}\"/}" draft.rb
+          sed -i "/draft-linux-arm64\.tar\.gz/,/sha256/{s/sha256 \"[^\"]*\"/sha256 \"${LINUX_ARM64}\"/}" draft.rb
+
+          echo "Updated draft.rb:"
+          cat draft.rb
+
+      - name: Commit and push
+        working-directory: homebrew-draft
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add draft.rb
+          git commit -m "Update draft to ${{ steps.version.outputs.version }}"
+          git push origin main
