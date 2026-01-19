@@ -1,0 +1,3 @@
+# Design Documents
+
+{{@index}}
