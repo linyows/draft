@@ -1,3 +1,3 @@
-# Design Documents
+# Design Docs
 
 {{@index}}

@@ -1,3 +1,3 @@
-# ADR Index
+# Architecture Decision Records
 
 {{@index}}
