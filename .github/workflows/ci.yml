@@ -14,16 +14,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        zig-version: ['0.15.0']
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
+        uses: mlugg/setup-zig@v1
         with:
-          version: ${{ matrix.zig-version }}
+          version: 0.15.0
 
       - name: Run tests
         run: zig build test
@@ -40,12 +39,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
+        uses: mlugg/setup-zig@v1
         with:
-          version: '0.15.0'
+          version: 0.15.0
 
       - name: Check formatting
         run: zig fmt --check src/
