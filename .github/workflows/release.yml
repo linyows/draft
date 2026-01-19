@@ -73,9 +73,7 @@ jobs:
             cp "$dir$name.tar.gz" "release/"
           done
           cd release
-          for file in *.tar.gz; do
-            sha256sum "$file" > "$file.sha256"
-          done
+          sha256sum *.tar.gz > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
