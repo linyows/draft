@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux
+            artifact: draft-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-linux
+            artifact: draft-linux-arm64
+          - os: macos-latest
+            target: x86_64-macos
+            artifact: draft-darwin-amd64
+          - os: macos-latest
+            target: aarch64-macos
+            artifact: draft-darwin-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Build
+        run: zig build --release=fast -Dtarget=${{ matrix.target }}
+
+      - name: Rename binary
+        run: mv zig-out/bin/draft ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            cp "$dir$name" "release/$name"
+            chmod +x "release/$name"
+          done
+          cd release
+          for file in *; do
+            sha256sum "$file" > "$file.sha256"
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/*
