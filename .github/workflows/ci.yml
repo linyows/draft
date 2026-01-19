@@ -20,9 +20,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
           version: 0.15.0
+          mirror: https://mirror.zml.ai/zig
 
       - name: Run tests
         run: zig build test
@@ -42,9 +43,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
           version: 0.15.0
+          mirror: https://mirror.zml.ai/zig
 
       - name: Check formatting
         run: zig fmt --check src/
