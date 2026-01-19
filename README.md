@@ -1,6 +1,15 @@
 # Draft
 
-A Markdown template generator written in Zig.
+A markdown template generator.
+
+<p align="center">
+  <a href="https://github.com/linyows/draft/actions/workflows/test.yml">
+    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/linyows/draft/test.yml?branch=main&style=for-the-badge&labelColor=666666">
+  </a>
+  <a href="https://github.com/linyows/draft/releases">
+    <img src="http://img.shields.io/github/release/linyows/draft.svg?style=for-the-badge&labelColor=666666&color=DDDDDD" alt="GitHub Release">
+  </a>
+</p>
 
 ## Features
 
@@ -12,14 +21,21 @@ A Markdown template generator written in Zig.
 
 ## Installation
 
+Install via Homebrew on macOS or Linux:
+
+```bash
+$ brew tap linyows/draft
+$ brew install draft
+```
+
 ### Build from source
 
 Requires Zig 0.15.2 or later.
 
 ```bash
-git clone https://github.com/linyows/draft.git
-cd draft
-zig build --release=fast
+$ git clone https://github.com/linyows/draft.git
+$ cd draft
+$ zig build --release=fast
 ```
 
 The binary will be available at `./zig-out/bin/draft`.
@@ -64,6 +80,7 @@ draft <template> index
 ```
 
 Example:
+
 ```bash
 draft adr index
 ```
