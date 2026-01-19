@@ -25,7 +25,7 @@ Install via Homebrew on macOS or Linux:
 
 ```bash
 $ brew tap linyows/draft
-$ brew install draft
+$ brew install linyows/draft/draft
 ```
 
 ### Build from source
@@ -104,6 +104,34 @@ This generates `README.md` in the output directory with a table of all documents
 | `templates_dir` | Directory containing template files | `.draft/templates` |
 | `output_dir` | Directory for generated files | `docs` |
 | `filename_format` | Output filename pattern | `{{@title}}.md` |
+| `templates` | Per-template configuration overrides | `null` |
+
+### Per-Template Configuration
+
+You can override `output_dir` and `filename_format` for specific templates:
+
+```json
+{
+  "templates_dir": ".draft/templates",
+  "output_dir": "docs",
+  "filename_format": "{{@title}}.md",
+  "templates": {
+    "adr": {
+      "output_dir": "docs/adrs",
+      "filename_format": "{{@id{4}}}-{{@title}}.md"
+    },
+    "design": {
+      "output_dir": "docs/design",
+      "filename_format": "{{@date}}-{{@title}}.md"
+    }
+  }
+}
+```
+
+With this configuration:
+- `draft adr "My ADR"` → creates `docs/adrs/0001-My ADR.md`
+- `draft design "My Design"` → creates `docs/design/2024-01-01-My Design.md`
+- Other templates use the global `output_dir` and `filename_format`
 
 ## Template Variables
 

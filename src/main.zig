@@ -9,6 +9,9 @@ const utils = @import("utils.zig");
 
 const Config = config.Config;
 const loadConfig = config.loadConfig;
+const freeConfig = config.freeConfig;
+const getOutputDir = config.getOutputDir;
+const getFilenameFormat = config.getFilenameFormat;
 const replaceVariables = template.replaceVariables;
 const DocumentMeta = index.DocumentMeta;
 const extractDocumentMeta = index.extractDocumentMeta;
@@ -185,10 +188,11 @@ fn runInit(allocator: mem.Allocator) !void {
 fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []const u8) !void {
     const cwd = fs.cwd();
 
-    const cfg = try loadConfig(allocator, cwd);
-    defer allocator.free(cfg.templates_dir);
-    defer allocator.free(cfg.output_dir);
-    defer allocator.free(cfg.filename_format);
+    var cfg = try loadConfig(allocator, cwd);
+    defer freeConfig(allocator, &cfg);
+
+    const output_dir = getOutputDir(cfg, template_name);
+    const filename_format = getFilenameFormat(cfg, template_name);
 
     const template_path = try std.fmt.allocPrint(allocator, "{s}/{s}.md", .{ cfg.templates_dir, template_name });
     defer allocator.free(template_path);
@@ -209,16 +213,16 @@ fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []con
     const username = getUsername(allocator) catch "unknown";
     defer if (!mem.eql(u8, username, "unknown")) allocator.free(username);
 
-    const next_id = try getNextId(allocator, cwd, cfg.output_dir);
+    const next_id = try getNextId(allocator, cwd, output_dir);
     defer allocator.free(next_id);
 
     const output_content = try replaceVariables(allocator, template_content, title, today, username, next_id);
     defer allocator.free(output_content);
 
-    const output_filename = try replaceVariables(allocator, cfg.filename_format, title, today, username, next_id);
+    const output_filename = try replaceVariables(allocator, filename_format, title, today, username, next_id);
     defer allocator.free(output_filename);
 
-    const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ cfg.output_dir, output_filename });
+    const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ output_dir, output_filename });
     defer allocator.free(output_path);
 
     const dir_end = mem.lastIndexOfScalar(u8, output_path, '/');
@@ -245,10 +249,10 @@ fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []con
 fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
     const cwd = fs.cwd();
 
-    const cfg = try loadConfig(allocator, cwd);
-    defer allocator.free(cfg.templates_dir);
-    defer allocator.free(cfg.output_dir);
-    defer allocator.free(cfg.filename_format);
+    var cfg = try loadConfig(allocator, cwd);
+    defer freeConfig(allocator, &cfg);
+
+    const output_dir = getOutputDir(cfg, template_name);
 
     const template_path = try std.fmt.allocPrint(allocator, "{s}/{s}-index.md", .{ cfg.templates_dir, template_name });
     defer allocator.free(template_path);
@@ -277,9 +281,9 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
         docs.deinit(allocator);
     }
 
-    var dir = cwd.openDir(cfg.output_dir, .{ .iterate = true }) catch |err| {
+    var dir = cwd.openDir(output_dir, .{ .iterate = true }) catch |err| {
         if (err == error.FileNotFound) {
-            std.debug.print("Error: Output directory not found: {s}\n", .{cfg.output_dir});
+            std.debug.print("Error: Output directory not found: {s}\n", .{output_dir});
             return;
         }
         return err;
@@ -292,7 +296,7 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
         if (!mem.endsWith(u8, entry.name, ".md")) continue;
         if (mem.eql(u8, entry.name, "README.md")) continue;
 
-        const file_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ cfg.output_dir, entry.name });
+        const file_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ output_dir, entry.name });
         defer allocator.free(file_path);
 
         const content = cwd.readFileAlloc(allocator, file_path, 1024 * 1024) catch continue;
@@ -313,7 +317,7 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
     const output_content = try expandIndex(allocator, template_content, docs.items);
     defer allocator.free(output_content);
 
-    const output_path = try std.fmt.allocPrint(allocator, "{s}/README.md", .{cfg.output_dir});
+    const output_path = try std.fmt.allocPrint(allocator, "{s}/README.md", .{output_dir});
     defer allocator.free(output_path);
 
     // Write or overwrite README.md
