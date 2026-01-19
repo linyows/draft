@@ -41,14 +41,18 @@ jobs:
       - name: Build
         run: zig build --release=fast -Dtarget=${{ matrix.target }}
 
-      - name: Rename binary
-        run: mv zig-out/bin/draft ${{ matrix.artifact }}
+      - name: Create archive
+        run: |
+          mkdir -p ${{ matrix.artifact }}
+          cp zig-out/bin/draft ${{ matrix.artifact }}/
+          cp README.md LICENSE ${{ matrix.artifact }}/
+          tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.tar.gz
 
   release:
     name: Release
@@ -66,11 +70,10 @@ jobs:
           mkdir -p release
           for dir in artifacts/*/; do
             name=$(basename "$dir")
-            cp "$dir$name" "release/$name"
-            chmod +x "release/$name"
+            cp "$dir$name.tar.gz" "release/"
           done
           cd release
-          for file in *; do
+          for file in *.tar.gz; do
             sha256sum "$file" > "$file.sha256"
           done
 
