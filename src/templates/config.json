@@ -1,5 +1,15 @@
 {
   "templates_dir": ".draft/templates",
   "output_dir": "docs",
-  "filename_format": "{{@title}}.md"
+  "filename_format": "{{@title}}.md",
+  "templates": {
+    "adr": {
+      "output_dir": "docs/adrs",
+      "filename_format": "{{@id{4}}}-{{@title}}.md"
+    },
+    "design": {
+      "output_dir": "docs/design",
+      "filename_format": "{{@date}}-{{@title}}.md"
+    }
+  }
 }
