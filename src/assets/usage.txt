@@ -1,11 +1,13 @@
 
-  ____  ____     _    ____ _____
- |  _ \|  _ \   / \  |  __|_   _|
- | | | | |_) | / _ \ | |_   | |
- | |_| |  _ < / ___ \|  _|  | |
- |____/|_| \_\_/   \_\_|    |_|
+                   _
+    |             | |
+  __|  ,_    __,  | |_|_
+ /  | |  |  /  |  |/  |
+ \_/|_/  |_/\_/|_/|__/|_/
+                  |\
+                  |/
 
- Markdown template generator
+Markdown template generator
 
 Usage:
   draft init                Initialize .draft directory with config and templates
