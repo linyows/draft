@@ -150,8 +150,25 @@ With this configuration:
 |----------|-------------|
 | `{{@index}}` | Document list table (default columns: Title, Date, Author) |
 | `{{@index{@id\|@title\|@status}}}` | Custom format table with specified columns |
+| `{{@index{@id\|@title,asc:@id}}}` | Custom format with sort specification |
+| `{{@index{@id\|@title\|@date,desc:@date}}}` | Sort by date descending |
 
 Available columns: `@id`, `@title`, `@date`, `@name`, `@status`
+
+### Index Sorting
+
+You can specify a sort order using the `,asc:@field` or `,desc:@field` syntax after the column specification.
+
+**Default sort behavior** (when no sort is specified):
+- If documents have `@id`: sort by `@id` ascending
+- Else if documents have `@date`: sort by `@date` descending
+- Else: sort by file modification time descending
+
+**Examples:**
+```markdown
+{{@index{@id|@title|@author,asc:@id}}}    <!-- Sort by ID ascending -->
+{{@index{@title|@date,desc:@date}}}       <!-- Sort by date descending -->
+```
 
 ## Custom Templates
 

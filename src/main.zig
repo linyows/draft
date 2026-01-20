@@ -16,6 +16,9 @@ const replaceVariables = template.replaceVariables;
 const DocumentMeta = index.DocumentMeta;
 const extractDocumentMeta = index.extractDocumentMeta;
 const expandIndex = index.expandIndex;
+const extractSortConfigFromTemplate = index.extractSortConfigFromTemplate;
+const getDefaultSortConfig = index.getDefaultSortConfig;
+const sortDocuments = index.sortDocuments;
 const getToday = utils.getToday;
 const getUsername = utils.getUsername;
 const getNextId = utils.getNextId;
@@ -97,15 +100,22 @@ fn printUsage() void {
         \\  {{@id{N}}}  - Incremental ID with N digits (e.g., {{@id{4}}} -> 0001)
         \\
         \\Index Variables:
-        \\  {{@index}}                    - Document list table (default: @title|@date|@name)
-        \\  {{@index{@id|@title|@status}}} - Custom format table
+        \\  {{@index}}                             - Document list table (default: @title|@date|@name)
+        \\  {{@index{@id|@title|@status}}}         - Custom format table
+        \\  {{@index{@id|@title,asc:@id}}}         - Custom format with sort specification
+        \\  {{@index{@id|@title|@date,desc:@date}}} - Sort by date descending
+        \\
+        \\Index Sort (default behavior):
+        \\  - If documents have @id: sort by @id ascending
+        \\  - Else if documents have @date: sort by @date descending
+        \\  - Else: sort by file modification time descending
         \\
     ;
     std.debug.print("{s}", .{usage});
 }
 
 fn printVersion() void {
-    std.debug.print("draft version 0.1.0\n", .{});
+    std.debug.print("draft version 0.3.0\n", .{});
 }
 
 fn runInit(allocator: mem.Allocator) !void {
@@ -302,16 +312,20 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
         const content = cwd.readFileAlloc(allocator, file_path, 1024 * 1024) catch continue;
         defer allocator.free(content);
 
-        const meta = try extractDocumentMeta(allocator, entry.name, content);
+        // Get file modification time
+        const stat = dir.statFile(entry.name) catch continue;
+        const mtime = stat.mtime;
+
+        const meta = try extractDocumentMeta(allocator, entry.name, content, mtime);
         try docs.append(allocator, meta);
     }
 
-    // Sort by ID
-    std.mem.sort(DocumentMeta, docs.items, {}, struct {
-        fn lessThan(_: void, a: DocumentMeta, b: DocumentMeta) bool {
-            return std.mem.order(u8, a.id, b.id) == .lt;
-        }
-    }.lessThan);
+    // Determine sort configuration
+    const sort_config = extractSortConfigFromTemplate(template_content) orelse
+        getDefaultSortConfig(docs.items);
+
+    // Sort documents
+    sortDocuments(docs.items, sort_config);
 
     // Expand @index variable
     const output_content = try expandIndex(allocator, template_content, docs.items);
