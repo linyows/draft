@@ -1,6 +1,7 @@
 const std = @import("std");
 const fs = std.fs;
 const mem = std.mem;
+const build_options = @import("build_options");
 
 const config = @import("config.zig");
 const template = @import("template.zig");
@@ -28,6 +29,7 @@ const default_adr_template = @embedFile("templates/adr.md");
 const default_adr_index_template = @embedFile("templates/adr-index.md");
 const default_design_template = @embedFile("templates/design.md");
 const default_design_index_template = @embedFile("templates/design-index.md");
+const usage_text = @embedFile("assets/usage.txt");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -68,54 +70,11 @@ pub fn main() !void {
 }
 
 fn printUsage() void {
-    const usage =
-        \\
-        \\  ____  ____     _    ____ _____
-        \\ |  _ \|  _ \   / \  |  __|_   _|
-        \\ | | | | |_) | / _ \ | |_   | |
-        \\ | |_| |  _ < / ___ \|  _|  | |
-        \\ |____/|_| \_\_/   \_\_|    |_|
-        \\
-        \\ Markdown template generator
-        \\
-        \\Usage:
-        \\  draft init                Initialize .draft directory with config and templates
-        \\  draft <template> <title>  Generate a markdown file from template
-        \\  draft <template> index    Generate index file (e.g., README.md)
-        \\  draft help                Show this help message
-        \\  draft version             Show version
-        \\
-        \\Examples:
-        \\  draft init
-        \\  draft adr "Authentication System Design"
-        \\  draft design "API Design"
-        \\  draft adr index
-        \\
-        \\Template Variables:
-        \\  {{@title}}  - Title specified as argument
-        \\  {{@today}}  - Today's date (YYYY-MM-DD)
-        \\  {{@date}}   - Today's date (YYYY-MM-DD)
-        \\  {{@name}}   - Current user name
-        \\  {{@id}}     - Incremental ID (001, 002, ...)
-        \\  {{@id{N}}}  - Incremental ID with N digits (e.g., {{@id{4}}} -> 0001)
-        \\
-        \\Index Variables:
-        \\  {{@index}}                             - Document list table (default: @title|@date|@name)
-        \\  {{@index{@id|@title|@status}}}         - Custom format table
-        \\  {{@index{@id|@title,asc:@id}}}         - Custom format with sort specification
-        \\  {{@index{@id|@title|@date,desc:@date}}} - Sort by date descending
-        \\
-        \\Index Sort (default behavior):
-        \\  - If documents have @id: sort by @id ascending
-        \\  - Else if documents have @date: sort by @date descending
-        \\  - Else: sort by file modification time descending
-        \\
-    ;
-    std.debug.print("{s}", .{usage});
+    std.debug.print("{s}", .{usage_text});
 }
 
 fn printVersion() void {
-    std.debug.print("draft version 0.3.0\n", .{});
+    std.debug.print("draft version {s}\n", .{build_options.version});
 }
 
 fn runInit(allocator: mem.Allocator) !void {
