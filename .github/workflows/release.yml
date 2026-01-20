@@ -33,6 +33,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Update version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/\.version = \"[^\"]*\",/.version = \"${VERSION}\",/" build.zig.zon
+          echo "Updated build.zig.zon to version ${VERSION}"
+          grep '\.version' build.zig.zon
+
       - name: Setup Zig
         uses: mlugg/setup-zig@e7d1537c378b83b8049f65dda471d87a2f7b2df2 # v2.2.0
         with:

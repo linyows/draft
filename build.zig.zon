@@ -1,6 +1,7 @@
 .{
     .name = .draft,
-    .version = "0.1.0",
+    // This version is replaced with the git tag during release workflow
+    .version = "0.0.0-dev",
     .fingerprint = 0x467c969413062c0c,
     .minimum_zig_version = "0.15.2",
     .paths = .{

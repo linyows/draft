@@ -1,6 +1,14 @@
-# Draft
+<p align="right">English | <a href="https://github.com/linyows/draft/blob/main/README.ja.md">日本語</a></p>
 
-A markdown template generator.
+<br><br><br><br><br><br>
+
+<p align="center">
+  <img alt="draft" src="https://github.com/linyows/draft/blob/main/misc/draft.svg?raw=true" width="200">
+  <br><br>
+  Markdown template generator
+</p>
+
+<br><br><br><br>
 
 <p align="center">
   <a href="https://github.com/linyows/draft/actions/workflows/test.yml">
