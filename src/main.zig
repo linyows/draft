@@ -29,7 +29,14 @@ const default_adr_template = @embedFile("templates/adr.md");
 const default_adr_index_template = @embedFile("templates/adr-index.md");
 const default_design_template = @embedFile("templates/design.md");
 const default_design_index_template = @embedFile("templates/design-index.md");
+const logo_text = @embedFile("assets/logo.txt");
+const desc_text = @embedFile("assets/desc.txt");
 const usage_text = @embedFile("assets/usage.txt");
+
+// ANSI color codes
+const gold = "\x1b[38;5;178m";
+const dim = "\x1b[2m";
+const reset = "\x1b[0m";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -70,7 +77,7 @@ pub fn main() !void {
 }
 
 fn printUsage() void {
-    std.debug.print("{s}", .{usage_text});
+    std.debug.print("{s}{s}{s}{s}{s}{s}\n{s}", .{ gold, logo_text, reset, dim, desc_text, reset, usage_text });
 }
 
 fn printVersion() void {
