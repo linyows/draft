@@ -33,7 +33,7 @@ pub fn getNextId(allocator: mem.Allocator, cwd: fs.Dir, output_dir: []const u8) 
 
     var dir = cwd.openDir(output_dir, .{ .iterate = true }) catch |err| {
         if (err == error.FileNotFound) {
-            return try std.fmt.allocPrint(allocator, "{d:0>3}", .{1});
+            return try std.fmt.allocPrint(allocator, "{d}", .{1});
         }
         return err;
     };
@@ -44,16 +44,21 @@ pub fn getNextId(allocator: mem.Allocator, cwd: fs.Dir, output_dir: []const u8) 
         if (entry.kind != .file) continue;
         if (!mem.endsWith(u8, entry.name, ".md")) continue;
 
-        if (entry.name.len >= 3) {
-            const id_part = entry.name[0..3];
-            const id = std.fmt.parseInt(u32, id_part, 10) catch continue;
-            if (id > max_id) {
-                max_id = id;
-            }
+        // Extract leading digits from filename
+        var digit_end: usize = 0;
+        while (digit_end < entry.name.len and entry.name[digit_end] >= '0' and entry.name[digit_end] <= '9') {
+            digit_end += 1;
+        }
+        if (digit_end == 0) continue;
+
+        const id_part = entry.name[0..digit_end];
+        const id = std.fmt.parseInt(u32, id_part, 10) catch continue;
+        if (id > max_id) {
+            max_id = id;
         }
     }
 
-    return try std.fmt.allocPrint(allocator, "{d:0>3}", .{max_id + 1});
+    return try std.fmt.allocPrint(allocator, "{d}", .{max_id + 1});
 }
 
 // =============================================================================
@@ -88,4 +93,106 @@ test "getUsername: returns non-empty string" {
     defer if (!mem.eql(u8, username, "fallback")) allocator.free(username);
 
     try testing.expect(username.len > 0);
+}
+
+test "getNextId: returns 1 when directory not found" {
+    const allocator = testing.allocator;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const next_id = try getNextId(allocator, tmp.dir, "nonexistent");
+    defer allocator.free(next_id);
+
+    try testing.expectEqualStrings("1", next_id);
+}
+
+test "getNextId: returns 1 when directory is empty" {
+    const allocator = testing.allocator;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.makeDir("docs");
+
+    const next_id = try getNextId(allocator, tmp.dir, "docs");
+    defer allocator.free(next_id);
+
+    try testing.expectEqualStrings("1", next_id);
+}
+
+test "getNextId: returns next id with 3-digit filenames" {
+    const allocator = testing.allocator;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.makeDir("docs");
+    var docs = try tmp.dir.openDir("docs", .{});
+    defer docs.close();
+
+    // Create 001-foo.md, 002-bar.md
+    {
+        const f = try docs.createFile("001-foo.md", .{});
+        f.close();
+    }
+    {
+        const f = try docs.createFile("002-bar.md", .{});
+        f.close();
+    }
+
+    const next_id = try getNextId(allocator, tmp.dir, "docs");
+    defer allocator.free(next_id);
+
+    try testing.expectEqualStrings("3", next_id);
+}
+
+test "getNextId: returns next id with 4-digit filenames" {
+    const allocator = testing.allocator;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.makeDir("docs");
+    var docs = try tmp.dir.openDir("docs", .{});
+    defer docs.close();
+
+    // Create 0001-foo.md, 0002-bar.md
+    {
+        const f = try docs.createFile("0001-foo.md", .{});
+        f.close();
+    }
+    {
+        const f = try docs.createFile("0002-bar.md", .{});
+        f.close();
+    }
+
+    const next_id = try getNextId(allocator, tmp.dir, "docs");
+    defer allocator.free(next_id);
+
+    try testing.expectEqualStrings("3", next_id);
+}
+
+test "getNextId: skips non-numeric filenames" {
+    const allocator = testing.allocator;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.makeDir("docs");
+    var docs = try tmp.dir.openDir("docs", .{});
+    defer docs.close();
+
+    {
+        const f = try docs.createFile("0001-foo.md", .{});
+        f.close();
+    }
+    {
+        const f = try docs.createFile("README.md", .{});
+        f.close();
+    }
+    {
+        const f = try docs.createFile("notes.md", .{});
+        f.close();
+    }
+
+    const next_id = try getNextId(allocator, tmp.dir, "docs");
+    defer allocator.free(next_id);
+
+    try testing.expectEqualStrings("2", next_id);
 }
