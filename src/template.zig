@@ -4,6 +4,8 @@ const mem = std.mem;
 pub fn replaceVariables(allocator: mem.Allocator, content: []const u8, title: []const u8, today: []const u8, username: []const u8, id: []const u8) ![]const u8 {
     var result: []const u8 = try allocator.dupe(u8, content);
 
+    // Replace {{@title{format}}} before {{@title}} so formatted variants are handled first
+    result = try replaceTitleWithFormat(allocator, result, title);
     result = try replaceAll(allocator, result, "{{@title}}", title);
     result = try replaceAll(allocator, result, "{{@today}}", today);
     result = try replaceAll(allocator, result, "{{@date}}", today);
@@ -11,6 +13,179 @@ pub fn replaceVariables(allocator: mem.Allocator, content: []const u8, title: []
     result = try replaceIdWithFormat(allocator, result, id);
 
     return result;
+}
+
+pub fn replaceTitleWithFormat(allocator: mem.Allocator, input: []const u8, title: []const u8) ![]const u8 {
+    var result: []const u8 = input;
+
+    // Replace {{@title{format}}} patterns (e.g., {{@title{snake}}}, {{@title{kebab}}})
+    var pos: usize = 0;
+    while (pos < result.len) {
+        if (mem.indexOf(u8, result[pos..], "{{@title{")) |start| {
+            const abs_start = pos + start;
+            const after_prefix = result[abs_start + 9 ..];
+
+            if (mem.indexOf(u8, after_prefix, "}}}")) |end| {
+                const format_str = after_prefix[0..end];
+                const transformed = try transformTitle(allocator, title, format_str) orelse {
+                    // Unknown format, skip this pattern
+                    pos = abs_start + 9 + end + 3;
+                    continue;
+                };
+                defer allocator.free(transformed);
+
+                const pattern_end = abs_start + 9 + end + 3;
+                const new_len = abs_start + transformed.len + (result.len - pattern_end);
+                var new_result = try allocator.alloc(u8, new_len);
+
+                @memcpy(new_result[0..abs_start], result[0..abs_start]);
+                @memcpy(new_result[abs_start .. abs_start + transformed.len], transformed);
+                @memcpy(new_result[abs_start + transformed.len ..], result[pattern_end..]);
+
+                allocator.free(result);
+                result = new_result;
+                pos = abs_start + transformed.len;
+                continue;
+            }
+        }
+        break;
+    }
+
+    return result;
+}
+
+fn transformTitle(allocator: mem.Allocator, title: []const u8, format: []const u8) !?[]const u8 {
+    if (mem.eql(u8, format, "snake")) {
+        return try toSnakeCase(allocator, title);
+    } else if (mem.eql(u8, format, "kebab")) {
+        return try toKebabCase(allocator, title);
+    } else if (mem.eql(u8, format, "lower")) {
+        return try toLower(allocator, title);
+    } else if (mem.eql(u8, format, "camel")) {
+        return try toCamelCase(allocator, title);
+    } else if (mem.eql(u8, format, "pascal")) {
+        return try toPascalCase(allocator, title);
+    }
+    return null;
+}
+
+fn toLower(allocator: mem.Allocator, input: []const u8) ![]const u8 {
+    var result = try allocator.alloc(u8, input.len);
+    for (input, 0..) |c, i| {
+        result[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return result;
+}
+
+fn toSnakeCase(allocator: mem.Allocator, input: []const u8) ![]const u8 {
+    return try toSeparatedLowerCase(allocator, input, '_');
+}
+
+fn toKebabCase(allocator: mem.Allocator, input: []const u8) ![]const u8 {
+    return try toSeparatedLowerCase(allocator, input, '-');
+}
+
+fn toSeparatedLowerCase(allocator: mem.Allocator, input: []const u8, separator: u8) ![]const u8 {
+    // First pass: calculate output length
+    var len: usize = 0;
+    var prev_was_separator = true; // treat start as separator to avoid leading separator
+    for (input, 0..) |c, i| {
+        if (c == ' ' or c == '-' or c == '_') {
+            if (!prev_was_separator) {
+                len += 1;
+                prev_was_separator = true;
+            }
+        } else if (c >= 'A' and c <= 'Z') {
+            // Insert separator before uppercase if not at boundary
+            if (!prev_was_separator and i > 0) {
+                // Check if previous char was lowercase (camelCase boundary)
+                const prev = input[i - 1];
+                if (prev >= 'a' and prev <= 'z') {
+                    len += 1;
+                }
+            }
+            len += 1;
+            prev_was_separator = false;
+        } else {
+            len += 1;
+            prev_was_separator = false;
+        }
+    }
+
+    var result = try allocator.alloc(u8, len);
+    var write_pos: usize = 0;
+    prev_was_separator = true;
+    for (input, 0..) |c, i| {
+        if (c == ' ' or c == '-' or c == '_') {
+            if (!prev_was_separator) {
+                result[write_pos] = separator;
+                write_pos += 1;
+                prev_was_separator = true;
+            }
+        } else if (c >= 'A' and c <= 'Z') {
+            if (!prev_was_separator and i > 0) {
+                const prev = input[i - 1];
+                if (prev >= 'a' and prev <= 'z') {
+                    result[write_pos] = separator;
+                    write_pos += 1;
+                }
+            }
+            result[write_pos] = c + 32;
+            write_pos += 1;
+            prev_was_separator = false;
+        } else {
+            result[write_pos] = c;
+            write_pos += 1;
+            prev_was_separator = false;
+        }
+    }
+
+    return result[0..write_pos];
+}
+
+fn toCamelCase(allocator: mem.Allocator, input: []const u8) ![]const u8 {
+    return try toCamelOrPascalCase(allocator, input, false);
+}
+
+fn toPascalCase(allocator: mem.Allocator, input: []const u8) ![]const u8 {
+    return try toCamelOrPascalCase(allocator, input, true);
+}
+
+fn toCamelOrPascalCase(allocator: mem.Allocator, input: []const u8, capitalize_first: bool) ![]const u8 {
+    // First pass: calculate output length (remove spaces/separators)
+    var len: usize = 0;
+    for (input) |c| {
+        if (c != ' ' and c != '-' and c != '_') {
+            len += 1;
+        }
+    }
+
+    var result = try allocator.alloc(u8, len);
+    var write_pos: usize = 0;
+    var capitalize_next = capitalize_first;
+    var is_first = true;
+    for (input) |c| {
+        if (c == ' ' or c == '-' or c == '_') {
+            capitalize_next = true;
+        } else {
+            if (capitalize_next and !is_first) {
+                result[write_pos] = if (c >= 'a' and c <= 'z') c - 32 else c;
+            } else if (is_first) {
+                if (capitalize_first) {
+                    result[write_pos] = if (c >= 'a' and c <= 'z') c - 32 else c;
+                } else {
+                    result[write_pos] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+                }
+                is_first = false;
+            } else {
+                result[write_pos] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+            }
+            write_pos += 1;
+            capitalize_next = false;
+        }
+    }
+
+    return result[0..write_pos];
 }
 
 pub fn replaceIdWithFormat(allocator: mem.Allocator, input: []const u8, id: []const u8) ![]const u8 {
@@ -243,4 +418,85 @@ test "formatId: various widths" {
     const id6 = try formatId(allocator, 123, 6);
     defer allocator.free(id6);
     try testing.expectEqualStrings("000123", id6);
+}
+
+test "toSnakeCase: spaces to underscores" {
+    const allocator = testing.allocator;
+    const result = try toSnakeCase(allocator, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("api_design_review", result);
+}
+
+test "toKebabCase: spaces to hyphens" {
+    const allocator = testing.allocator;
+    const result = try toKebabCase(allocator, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("api-design-review", result);
+}
+
+test "toLower: uppercase to lowercase" {
+    const allocator = testing.allocator;
+    const result = try toLower(allocator, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("api design review", result);
+}
+
+test "toCamelCase: words to camelCase" {
+    const allocator = testing.allocator;
+    const result = try toCamelCase(allocator, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("apiDesignReview", result);
+}
+
+test "toPascalCase: words to PascalCase" {
+    const allocator = testing.allocator;
+    const result = try toPascalCase(allocator, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("ApiDesignReview", result);
+}
+
+test "toSnakeCase: camelCase input" {
+    const allocator = testing.allocator;
+    const result = try toSnakeCase(allocator, "camelCaseInput");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("camel_case_input", result);
+}
+
+test "toKebabCase: multiple spaces and mixed separators" {
+    const allocator = testing.allocator;
+    const result = try toKebabCase(allocator, "Hello  World-Test_Case");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("hello-world-test-case", result);
+}
+
+test "replaceTitleWithFormat: snake in template" {
+    const allocator = testing.allocator;
+    const input = try allocator.dupe(u8, "{{@id{4}}}-{{@title{snake}}}.md");
+    const result = try replaceTitleWithFormat(allocator, input, "Authentication System");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("{{@id{4}}}-authentication_system.md", result);
+}
+
+test "replaceTitleWithFormat: kebab in template" {
+    const allocator = testing.allocator;
+    const input = try allocator.dupe(u8, "{{@date}}-{{@title{kebab}}}.md");
+    const result = try replaceTitleWithFormat(allocator, input, "API Design Review");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("{{@date}}-api-design-review.md", result);
+}
+
+test "replaceVariables: title with snake format in filename" {
+    const allocator = testing.allocator;
+    const template = "{{@id{4}}}-{{@title{snake}}}.md";
+    const result = try replaceVariables(allocator, template, "Authentication System", "2026-01-18", "user", "1");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("0001-authentication_system.md", result);
+}
+
+test "replaceVariables: title with kebab format and plain title" {
+    const allocator = testing.allocator;
+    const template = "# {{@title}}\nFile: {{@title{kebab}}}.md";
+    const result = try replaceVariables(allocator, template, "API Design Review", "2026-01-18", "user", "1");
+    defer allocator.free(result);
+    try testing.expectEqualStrings("# API Design Review\nFile: api-design-review.md", result);
 }
