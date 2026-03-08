@@ -126,19 +126,19 @@ draft adr index
   "templates": {
     "adr": {
       "output_dir": "docs/adrs",
-      "filename_format": "{{@id{4}}}-{{@title}}.md"
+      "filename_format": "{{@id{4}}}-{{@title{kebab}}}.md"
     },
     "design": {
       "output_dir": "docs/design",
-      "filename_format": "{{@date}}-{{@title}}.md"
+      "filename_format": "{{@date}}-{{@title{kebab}}}.md"
     }
   }
 }
 ```
 
 この設定では:
-- `draft adr "My ADR"` → `docs/adrs/0001-My ADR.md` を作成
-- `draft design "My Design"` → `docs/design/2024-01-01-My Design.md` を作成
+- `draft adr "My ADR"` → `docs/adrs/0001-my-adr.md` を作成
+- `draft design "My Design"` → `docs/design/2024-01-01-my-design.md` を作成
 - 他のテンプレートはグローバルの `output_dir` と `filename_format` を使用
 
 ## テンプレート変数
@@ -146,6 +146,11 @@ draft adr index
 | 変数 | 説明 |
 |----------|-------------|
 | `{{@title}}` | 引数で指定したタイトル |
+| `{{@title{snake}}}` | スネークケースのタイトル (例: `"My Title"` → `my_title`) |
+| `{{@title{kebab}}}` | ケバブケースのタイトル (例: `"My Title"` → `my-title`) |
+| `{{@title{lower}}}` | 小文字のタイトル (例: `"My Title"` → `my title`) |
+| `{{@title{camel}}}` | キャメルケースのタイトル (例: `"My Title"` → `myTitle`) |
+| `{{@title{pascal}}}` | パスカルケースのタイトル (例: `"My Title"` → `MyTitle`) |
 | `{{@today}}` | 今日の日付 (YYYY-MM-DD) |
 | `{{@date}}` | 今日の日付 (YYYY-MM-DD) |
 | `{{@name}}` | 現在のユーザー名 |

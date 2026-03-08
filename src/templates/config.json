@@ -5,11 +5,11 @@
   "templates": {
     "adr": {
       "output_dir": "docs/adrs",
-      "filename_format": "{{@id{4}}}-{{@title}}.md"
+      "filename_format": "{{@id{4}}}-{{@title{kebab}}}.md"
     },
     "design": {
       "output_dir": "docs/design",
-      "filename_format": "{{@date}}-{{@title}}.md"
+      "filename_format": "{{@date}}-{{@title{kebab}}}.md"
     }
   }
 }

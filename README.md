@@ -126,19 +126,19 @@ You can override `output_dir` and `filename_format` for specific templates:
   "templates": {
     "adr": {
       "output_dir": "docs/adrs",
-      "filename_format": "{{@id{4}}}-{{@title}}.md"
+      "filename_format": "{{@id{4}}}-{{@title{kebab}}}.md"
     },
     "design": {
       "output_dir": "docs/design",
-      "filename_format": "{{@date}}-{{@title}}.md"
+      "filename_format": "{{@date}}-{{@title{kebab}}}.md"
     }
   }
 }
 ```
 
 With this configuration:
-- `draft adr "My ADR"` → creates `docs/adrs/0001-My ADR.md`
-- `draft design "My Design"` → creates `docs/design/2024-01-01-My Design.md`
+- `draft adr "My ADR"` → creates `docs/adrs/0001-my-adr.md`
+- `draft design "My Design"` → creates `docs/design/2024-01-01-my-design.md`
 - Other templates use the global `output_dir` and `filename_format`
 
 ## Template Variables
@@ -146,6 +146,11 @@ With this configuration:
 | Variable | Description |
 |----------|-------------|
 | `{{@title}}` | Title specified as argument |
+| `{{@title{snake}}}` | Title in snake_case (e.g., `"My Title"` → `my_title`) |
+| `{{@title{kebab}}}` | Title in kebab-case (e.g., `"My Title"` → `my-title`) |
+| `{{@title{lower}}}` | Title in lowercase (e.g., `"My Title"` → `my title`) |
+| `{{@title{camel}}}` | Title in camelCase (e.g., `"My Title"` → `myTitle`) |
+| `{{@title{pascal}}}` | Title in PascalCase (e.g., `"My Title"` → `MyTitle`) |
 | `{{@today}}` | Today's date (YYYY-MM-DD) |
 | `{{@date}}` | Today's date (YYYY-MM-DD) |
 | `{{@name}}` | Current user name |
