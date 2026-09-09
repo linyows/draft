@@ -177,6 +177,10 @@ You can specify a sort order using the `,asc:@field` or `,desc:@field` syntax af
 - Else if documents have `@date`: sort by `@date` descending
 - Else: sort by file modification time descending
 
+Values are compared in natural order: runs of digits are compared by their numeric value,
+so `9` comes before `10` regardless of zero padding. Documents with the same value are
+ordered by filename, so the index is stable across machines.
+
 **Examples:**
 ```markdown
 {{@index{@id|@title|@author,asc:@id}}}    <!-- Sort by ID ascending -->

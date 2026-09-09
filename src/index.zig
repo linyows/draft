@@ -32,13 +32,14 @@ pub fn extractDocumentMeta(allocator: mem.Allocator, filename: []const u8, conte
         .mtime = mtime,
     };
 
-    // Extract ID from filename (first 3 chars if numeric)
-    if (filename.len >= 3) {
-        const id_part = filename[0..3];
-        if (std.fmt.parseInt(u32, id_part, 10)) |_| {
-            allocator.free(meta.id);
-            meta.id = try allocator.dupe(u8, id_part);
-        } else |_| {}
+    // Extract ID from filename (leading digits, any width)
+    var digit_end: usize = 0;
+    while (digit_end < filename.len and std.ascii.isDigit(filename[digit_end])) {
+        digit_end += 1;
+    }
+    if (digit_end > 0) {
+        allocator.free(meta.id);
+        meta.id = try allocator.dupe(u8, filename[0..digit_end]);
     }
 
     // Parse content line by line
@@ -246,26 +247,81 @@ pub fn getDefaultSortConfig(docs: []const DocumentMeta) SortConfig {
     }
 }
 
+/// Compare two values in natural order: runs of digits are compared by their
+/// numeric value, so "9" < "10" and "0009" < "0010", while the rest of the
+/// text is compared byte by byte. Values that are numerically equal but
+/// written differently (e.g. "9" and "009") fall back to a byte comparison.
+pub fn compareNatural(a: []const u8, b: []const u8) std.math.Order {
+    var i: usize = 0;
+    var j: usize = 0;
+
+    while (i < a.len and j < b.len) {
+        if (std.ascii.isDigit(a[i]) and std.ascii.isDigit(b[j])) {
+            // Skip leading zeros, then compare the digit runs
+            const a_run = digitRun(a, i);
+            const b_run = digitRun(b, j);
+            const a_digits = stripLeadingZeros(a[i..a_run]);
+            const b_digits = stripLeadingZeros(b[j..b_run]);
+
+            if (a_digits.len != b_digits.len) {
+                return if (a_digits.len < b_digits.len) .lt else .gt;
+            }
+            const digits_order = mem.order(u8, a_digits, b_digits);
+            if (digits_order != .eq) return digits_order;
+
+            i = a_run;
+            j = b_run;
+            continue;
+        }
+
+        if (a[i] != b[j]) {
+            return if (a[i] < b[j]) .lt else .gt;
+        }
+        i += 1;
+        j += 1;
+    }
+
+    if (i < a.len) return .gt;
+    if (j < b.len) return .lt;
+
+    // Equal in natural order: keep a total order for values such as "9" and "009"
+    return mem.order(u8, a, b);
+}
+
+fn digitRun(s: []const u8, start: usize) usize {
+    var end = start;
+    while (end < s.len and std.ascii.isDigit(s[end])) : (end += 1) {}
+    return end;
+}
+
+fn stripLeadingZeros(digits: []const u8) []const u8 {
+    var start: usize = 0;
+    while (start + 1 < digits.len and digits[start] == '0') : (start += 1) {}
+    return digits[start..];
+}
+
 /// Sort documents by the given configuration
 pub fn sortDocuments(docs: []DocumentMeta, sort_config: SortConfig) void {
     const Context = struct {
         config: SortConfig,
 
         fn compare(ctx: @This(), a: DocumentMeta, b: DocumentMeta) bool {
-            const order_result = if (mem.eql(u8, ctx.config.field, "@mtime"))
+            var order_result = if (mem.eql(u8, ctx.config.field, "@mtime"))
                 compareMtime(a, b)
             else
-                compareStrings(getColumnValue(a, ctx.config.field), getColumnValue(b, ctx.config.field));
+                compareNatural(getColumnValue(a, ctx.config.field), getColumnValue(b, ctx.config.field));
+
+            // Break ties by filename so the output does not depend on
+            // the order the directory happens to be iterated in
+            if (order_result == .eq) {
+                order_result = compareNatural(a.filename, b.filename);
+            }
 
             return if (ctx.config.order == .asc) order_result == .lt else order_result == .gt;
         }
 
         fn compareMtime(a: DocumentMeta, b: DocumentMeta) std.math.Order {
             return std.math.order(a.mtime, b.mtime);
-        }
-
-        fn compareStrings(a_val: []const u8, b_val: []const u8) std.math.Order {
-            return mem.order(u8, a_val, b_val);
         }
     };
 
@@ -342,6 +398,60 @@ test "extractDocumentMeta: id from filename" {
 
     try testing.expectEqualStrings("042", meta.id);
     try testing.expectEqualStrings("My Title", meta.title);
+}
+
+test "extractDocumentMeta: id from 4-digit filename is not truncated" {
+    const allocator = testing.allocator;
+    const content = "# My Title\n\nSome content";
+
+    const meta = try extractDocumentMeta(allocator, "0009-my-doc.md", content, 2000000);
+    defer {
+        allocator.free(meta.filename);
+        allocator.free(meta.id);
+        allocator.free(meta.title);
+        allocator.free(meta.date);
+        allocator.free(meta.name);
+        allocator.free(meta.status);
+    }
+
+    try testing.expectEqualStrings("0009", meta.id);
+}
+
+test "compareNatural: digit runs compare numerically" {
+    try testing.expectEqual(std.math.Order.lt, compareNatural("9", "10"));
+    try testing.expectEqual(std.math.Order.lt, compareNatural("0009", "0010"));
+    try testing.expectEqual(std.math.Order.lt, compareNatural("999", "1000"));
+    try testing.expectEqual(std.math.Order.gt, compareNatural("10", "9"));
+    try testing.expectEqual(std.math.Order.lt, compareNatural("adr-9", "adr-10"));
+    try testing.expectEqual(std.math.Order.eq, compareNatural("010", "010"));
+    try testing.expectEqual(std.math.Order.lt, compareNatural("2026-01-18", "2026-01-19"));
+    try testing.expectEqual(std.math.Order.lt, compareNatural("abc", "abcd"));
+}
+
+test "sortDocuments: id sort is numeric, not lexicographic" {
+    var docs = [_]DocumentMeta{
+        .{ .filename = "0010-b.md", .id = "10", .title = "b", .date = "", .name = "", .status = "", .mtime = 0 },
+        .{ .filename = "0009-a.md", .id = "9", .title = "a", .date = "", .name = "", .status = "", .mtime = 0 },
+        .{ .filename = "0100-c.md", .id = "100", .title = "c", .date = "", .name = "", .status = "", .mtime = 0 },
+    };
+
+    sortDocuments(&docs, .{ .field = "@id", .order = .asc });
+
+    try testing.expectEqualStrings("9", docs[0].id);
+    try testing.expectEqualStrings("10", docs[1].id);
+    try testing.expectEqualStrings("100", docs[2].id);
+}
+
+test "sortDocuments: ties fall back to filename" {
+    var docs = [_]DocumentMeta{
+        .{ .filename = "0010-b.md", .id = "", .title = "b", .date = "2026-01-18", .name = "", .status = "", .mtime = 0 },
+        .{ .filename = "0009-a.md", .id = "", .title = "a", .date = "2026-01-18", .name = "", .status = "", .mtime = 0 },
+    };
+
+    sortDocuments(&docs, .{ .field = "@date", .order = .desc });
+
+    try testing.expectEqualStrings("0010-b.md", docs[0].filename);
+    try testing.expectEqualStrings("0009-a.md", docs[1].filename);
 }
 
 test "getColumnHeader: maps column names" {
