@@ -137,11 +137,11 @@ pub fn expandIndex(allocator: mem.Allocator, template: []const u8, docs: []const
 }
 
 pub fn buildIndexTable(allocator: mem.Allocator, docs: []const DocumentMeta, format: []const u8) ![]const u8 {
-    var buffer = std.ArrayListUnmanaged(u8){};
+    var buffer = std.ArrayListUnmanaged(u8).empty;
     defer buffer.deinit(allocator);
 
     // Parse format columns
-    var columns = std.ArrayListUnmanaged([]const u8){};
+    var columns = std.ArrayListUnmanaged([]const u8).empty;
     defer columns.deinit(allocator);
 
     var col_iter = mem.splitScalar(u8, format, '|');

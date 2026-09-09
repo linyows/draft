@@ -1,6 +1,8 @@
 const std = @import("std");
-const fs = std.fs;
 const mem = std.mem;
+const Io = std.Io;
+const Dir = std.Io.Dir;
+const Environ = std.process.Environ;
 const build_options = @import("build_options");
 
 const config = @import("config.zig");
@@ -38,13 +40,11 @@ const gold = "\x1b[38;5;178m";
 const dim = "\x1b[2m";
 const reset = "\x1b[0m";
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len < 2) {
         printUsage();
@@ -54,7 +54,7 @@ pub fn main() !void {
     const command = args[1];
 
     if (mem.eql(u8, command, "init")) {
-        try runInit(allocator);
+        try runInit(io);
     } else if (mem.eql(u8, command, "help") or mem.eql(u8, command, "--help") or mem.eql(u8, command, "-h")) {
         printUsage();
     } else if (mem.eql(u8, command, "version") or mem.eql(u8, command, "--version") or mem.eql(u8, command, "-v")) {
@@ -69,9 +69,9 @@ pub fn main() !void {
         const second_arg = args[2];
 
         if (mem.eql(u8, second_arg, "index")) {
-            try runIndex(allocator, template_name);
+            try runIndex(allocator, io, template_name);
         } else {
-            try runGenerate(allocator, template_name, second_arg);
+            try runGenerate(allocator, io, init.minimal.environ, template_name, second_arg);
         }
     }
 }
@@ -84,19 +84,15 @@ fn printVersion() void {
     std.debug.print("draft version {s}\n", .{build_options.version});
 }
 
-fn runInit(allocator: mem.Allocator) !void {
-    _ = allocator;
+fn runInit(io: Io) !void {
+    const cwd = Dir.cwd();
 
-    const cwd = fs.cwd();
-
-    cwd.makePath(".draft/templates") catch |err| {
-        if (err != error.PathAlreadyExists) return err;
-    };
+    try cwd.createDirPath(io, ".draft/templates");
 
     // Create config file
-    if (cwd.createFile(".draft/config.json", .{ .exclusive = true })) |config_file| {
-        defer config_file.close();
-        try config_file.writeAll(default_config_json);
+    if (cwd.createFile(io, ".draft/config.json", .{ .exclusive = true })) |config_file| {
+        defer config_file.close(io);
+        try config_file.writeStreamingAll(io, default_config_json);
         std.debug.print("Created: .draft/config.json\n", .{});
     } else |err| {
         if (err == error.PathAlreadyExists) {
@@ -107,9 +103,9 @@ fn runInit(allocator: mem.Allocator) !void {
     }
 
     // Create adr template
-    if (cwd.createFile(".draft/templates/adr.md", .{ .exclusive = true })) |adr_file| {
-        defer adr_file.close();
-        try adr_file.writeAll(default_adr_template);
+    if (cwd.createFile(io, ".draft/templates/adr.md", .{ .exclusive = true })) |adr_file| {
+        defer adr_file.close(io);
+        try adr_file.writeStreamingAll(io, default_adr_template);
         std.debug.print("Created: .draft/templates/adr.md\n", .{});
     } else |err| {
         if (err == error.PathAlreadyExists) {
@@ -120,9 +116,9 @@ fn runInit(allocator: mem.Allocator) !void {
     }
 
     // Create adr-index template
-    if (cwd.createFile(".draft/templates/adr-index.md", .{ .exclusive = true })) |adr_index_file| {
-        defer adr_index_file.close();
-        try adr_index_file.writeAll(default_adr_index_template);
+    if (cwd.createFile(io, ".draft/templates/adr-index.md", .{ .exclusive = true })) |adr_index_file| {
+        defer adr_index_file.close(io);
+        try adr_index_file.writeStreamingAll(io, default_adr_index_template);
         std.debug.print("Created: .draft/templates/adr-index.md\n", .{});
     } else |err| {
         if (err == error.PathAlreadyExists) {
@@ -133,9 +129,9 @@ fn runInit(allocator: mem.Allocator) !void {
     }
 
     // Create design template
-    if (cwd.createFile(".draft/templates/design.md", .{ .exclusive = true })) |design_file| {
-        defer design_file.close();
-        try design_file.writeAll(default_design_template);
+    if (cwd.createFile(io, ".draft/templates/design.md", .{ .exclusive = true })) |design_file| {
+        defer design_file.close(io);
+        try design_file.writeStreamingAll(io, default_design_template);
         std.debug.print("Created: .draft/templates/design.md\n", .{});
     } else |err| {
         if (err == error.PathAlreadyExists) {
@@ -146,9 +142,9 @@ fn runInit(allocator: mem.Allocator) !void {
     }
 
     // Create design-index template
-    if (cwd.createFile(".draft/templates/design-index.md", .{ .exclusive = true })) |design_index_file| {
-        defer design_index_file.close();
-        try design_index_file.writeAll(default_design_index_template);
+    if (cwd.createFile(io, ".draft/templates/design-index.md", .{ .exclusive = true })) |design_index_file| {
+        defer design_index_file.close(io);
+        try design_index_file.writeStreamingAll(io, default_design_index_template);
         std.debug.print("Created: .draft/templates/design-index.md\n", .{});
     } else |err| {
         if (err == error.PathAlreadyExists) {
@@ -161,10 +157,10 @@ fn runInit(allocator: mem.Allocator) !void {
     std.debug.print("\nInitialization complete!\n", .{});
 }
 
-fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []const u8) !void {
-    const cwd = fs.cwd();
+fn runGenerate(allocator: mem.Allocator, io: Io, environ: Environ, template_name: []const u8, title: []const u8) !void {
+    const cwd = Dir.cwd();
 
-    var cfg = try loadConfig(allocator, cwd);
+    var cfg = try loadConfig(allocator, io, cwd);
     defer freeConfig(allocator, &cfg);
 
     const output_dir = getOutputDir(cfg, template_name);
@@ -173,7 +169,7 @@ fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []con
     const template_path = try std.fmt.allocPrint(allocator, "{s}/{s}.md", .{ cfg.templates_dir, template_name });
     defer allocator.free(template_path);
 
-    const template_content = cwd.readFileAlloc(allocator, template_path, 1024 * 1024) catch |err| {
+    const template_content = cwd.readFileAlloc(io, template_path, allocator, .limited(1024 * 1024)) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Error: Template not found: {s}\n", .{template_path});
             std.debug.print("Run 'draft init' to create default templates or create your own.\n", .{});
@@ -183,13 +179,13 @@ fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []con
     };
     defer allocator.free(template_content);
 
-    const today = getToday(allocator) catch "0000-00-00";
+    const today = getToday(allocator, io) catch "0000-00-00";
     defer if (!mem.eql(u8, today, "0000-00-00")) allocator.free(today);
 
-    const username = getUsername(allocator) catch "unknown";
+    const username = getUsername(allocator, environ) catch "unknown";
     defer if (!mem.eql(u8, username, "unknown")) allocator.free(username);
 
-    const next_id = try getNextId(allocator, cwd, output_dir);
+    const next_id = try getNextId(allocator, io, cwd, output_dir);
     defer allocator.free(next_id);
 
     const output_content = try replaceVariables(allocator, template_content, title, today, username, next_id);
@@ -204,28 +200,26 @@ fn runGenerate(allocator: mem.Allocator, template_name: []const u8, title: []con
     const dir_end = mem.lastIndexOfScalar(u8, output_path, '/');
     if (dir_end) |end| {
         const dir_path = output_path[0..end];
-        cwd.makePath(dir_path) catch |err| {
-            if (err != error.PathAlreadyExists) return err;
-        };
+        try cwd.createDirPath(io, dir_path);
     }
 
-    const output_file = cwd.createFile(output_path, .{ .exclusive = true }) catch |err| {
+    const output_file = cwd.createFile(io, output_path, .{ .exclusive = true }) catch |err| {
         if (err == error.PathAlreadyExists) {
             std.debug.print("Error: File already exists: {s}\n", .{output_path});
             return;
         }
         return err;
     };
-    defer output_file.close();
-    try output_file.writeAll(output_content);
+    defer output_file.close(io);
+    try output_file.writeStreamingAll(io, output_content);
 
     std.debug.print("Created: {s}\n", .{output_path});
 }
 
-fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
-    const cwd = fs.cwd();
+fn runIndex(allocator: mem.Allocator, io: Io, template_name: []const u8) !void {
+    const cwd = Dir.cwd();
 
-    var cfg = try loadConfig(allocator, cwd);
+    var cfg = try loadConfig(allocator, io, cwd);
     defer freeConfig(allocator, &cfg);
 
     const output_dir = getOutputDir(cfg, template_name);
@@ -233,7 +227,7 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
     const template_path = try std.fmt.allocPrint(allocator, "{s}/{s}-index.md", .{ cfg.templates_dir, template_name });
     defer allocator.free(template_path);
 
-    const template_content = cwd.readFileAlloc(allocator, template_path, 1024 * 1024) catch |err| {
+    const template_content = cwd.readFileAlloc(io, template_path, allocator, .limited(1024 * 1024)) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Error: Index template not found: {s}\n", .{template_path});
             std.debug.print("Run 'draft init' to create default templates.\n", .{});
@@ -244,7 +238,7 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
     defer allocator.free(template_content);
 
     // Collect document metadata
-    var docs = std.ArrayListUnmanaged(DocumentMeta){};
+    var docs = std.ArrayListUnmanaged(DocumentMeta).empty;
     defer {
         for (docs.items) |doc| {
             allocator.free(doc.filename);
@@ -257,17 +251,17 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
         docs.deinit(allocator);
     }
 
-    var dir = cwd.openDir(output_dir, .{ .iterate = true }) catch |err| {
+    var dir = cwd.openDir(io, output_dir, .{ .iterate = true }) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Error: Output directory not found: {s}\n", .{output_dir});
             return;
         }
         return err;
     };
-    defer dir.close();
+    defer dir.close(io);
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (!mem.endsWith(u8, entry.name, ".md")) continue;
         if (mem.eql(u8, entry.name, "README.md")) continue;
@@ -275,12 +269,12 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
         const file_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ output_dir, entry.name });
         defer allocator.free(file_path);
 
-        const content = cwd.readFileAlloc(allocator, file_path, 1024 * 1024) catch continue;
+        const content = cwd.readFileAlloc(io, file_path, allocator, .limited(1024 * 1024)) catch continue;
         defer allocator.free(content);
 
         // Get file modification time
-        const stat = dir.statFile(entry.name) catch continue;
-        const mtime = stat.mtime;
+        const stat = dir.statFile(io, entry.name, .{}) catch continue;
+        const mtime: i128 = stat.mtime.nanoseconds;
 
         const meta = try extractDocumentMeta(allocator, entry.name, content, mtime);
         try docs.append(allocator, meta);
@@ -301,9 +295,9 @@ fn runIndex(allocator: mem.Allocator, template_name: []const u8) !void {
     defer allocator.free(output_path);
 
     // Write or overwrite README.md
-    const output_file = try cwd.createFile(output_path, .{});
-    defer output_file.close();
-    try output_file.writeAll(output_content);
+    const output_file = try cwd.createFile(io, output_path, .{});
+    defer output_file.close(io);
+    try output_file.writeStreamingAll(io, output_content);
 
     std.debug.print("Created: {s}\n", .{output_path});
 }
