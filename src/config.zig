@@ -1,7 +1,8 @@
 const std = @import("std");
-const fs = std.fs;
 const mem = std.mem;
 const json = std.json;
+const Io = std.Io;
+const Dir = std.Io.Dir;
 
 pub const TemplateConfig = struct {
     output_dir: ?[]const u8 = null,
@@ -37,8 +38,8 @@ pub fn getFilenameFormat(cfg: Config, template_name: []const u8) []const u8 {
     return cfg.filename_format;
 }
 
-pub fn loadConfig(allocator: mem.Allocator, cwd: fs.Dir) !Config {
-    const config_content = cwd.readFileAlloc(allocator, ".draft/config.json", 1024 * 1024) catch |err| {
+pub fn loadConfig(allocator: mem.Allocator, io: Io, cwd: Dir) !Config {
+    const config_content = cwd.readFileAlloc(io, ".draft/config.json", allocator, .limited(1024 * 1024)) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Error: Config file not found. Run 'draft init' first.\n", .{});
             return error.ConfigNotFound;
